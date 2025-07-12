@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Yocto Private Key Scanner</title>
+  <style>
+    body { font-family: monospace; background: #0d0d0d; color: #00ffcc; padding: 20px; }
+    input, textarea, button { font-family: monospace; background: #111; color: #0f0; border: 1px solid #0f0; padding: 5px; margin-top: 10px; width: 100%; }
+    .result { border: 1px dashed #0f0; padding: 10px; margin-top: 10px; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h2>🔍 Yocto Private Key Scanner (20 Key Batch)</h2>
+  <p>Masukkan 64-char private key hex (1 per baris):</p>
+  <textarea id="keyInput" rows="10" placeholder="000000000000..."></textarea>
+  <button onclick="scanKeys()">Scan</button>
+  <div id="output" class="result"></div>
+
+  <script>
+    async function scanKeys() {
+      const keys = document.getElementById('keyInput').value.trim().split(/\n|\r/).filter(k => k.length === 64);
+      const output = document.getElementById('output');
+      output.innerText = '⏳ Memproses...';
+      let results = [];
+
+      for (let hex of keys) {
+        const privKey = BigInt('0x' + hex);
+        const privBytes = hexToBytes(hex);
+        const pubPoint = secp256k1(privBytes);
+        const pubkey = compress(pubPoint);
+        const hash160 = ripemd160(await sha256(pubkey));
+        const address = toBase58Check(hash160, 0x00);
+
+        const balance = await fetchBalance(address);
+        results.push(`🔑 ${hex}\n🏷 Address: ${address}\n💰 Balance: ${balance}\n`);
+      }
+      output.innerText = results.join('\n---\n');
+    }
+
+    function hexToBytes(hex) {
+      return Uint8Array.from(hex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+    }
+
+    async function fetchBalance(addr) {
+      try {
+        const res = await fetch(`https://blockstream.info/api/address/${addr}`);
+        const json = await res.json();
+        const sats = json.chain_stats.funded_txo_sum - json.chain_stats.spent_txo_sum;
+        return (sats / 1e8).toFixed(8) + ' BTC';
+      } catch (e) {
+        return '❌ Error';
+      }
+    }
+
+    function sha256(b) {
+      return crypto.subtle.digest('SHA-256', b).then(buf => new Uint8Array(buf));
+    }
+
+    function ripemd160(buf) {
+      // Placeholder: use proper RIPEMD-160 lib or WASM
+      return buf.slice(0, 20); // ❗For demo only, NOT real hash
+    }
+
+    function compress([x, y]) {
+      return [y[31] & 1 ? 0x03 : 0x02, ...x];
+    }
+
+    function toBase58Check(hash, version) {
+      const data = new Uint8Array([version, ...hash]);
+      // NOTE: SHA-256 sync not supported in browser JS, this function will fail in current state.
+      return '[base58 not implemented]';
+    }
+  </script>
+</body>
+</html>
