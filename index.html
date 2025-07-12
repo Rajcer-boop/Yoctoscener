@@ -1,65 +1,38 @@
-
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
+  <title>Yocto Private Key Scanner</title>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>🔍 Pemindai Kunci Pribadi Bitcoin - Yocto</title>
-  <script src="https://unpkg.com/bitcoinjs-lib@6.1.0"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    async function scanKeys() {
+      const input = document.getElementById('keys').value.trim().split('\n');
+      const response = await fetch('/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keys: input })
+      });
+      const data = await response.json();
+      const resultDiv = document.getElementById('results');
+      resultDiv.innerHTML = '';
+      if (data.results) {
+        data.results.forEach(entry => {
+          if (entry.error) {
+            resultDiv.innerHTML += `<p style="color:red">❌ ${entry.key} → ${entry.error}</p>`;
+          } else {
+            resultDiv.innerHTML += `<p style="color:green">✅ ${entry.key} → ${entry.address}</p>`;
+          }
+        });
+      } else {
+        resultDiv.innerHTML = '<p style="color:red">Error occurred.</p>';
+      }
+    }
+  </script>
 </head>
-<body class="bg-gray-900 text-white font-mono p-6">
-  <div class="max-w-2xl mx-auto">
-    <h1 class="text-2xl font-bold text-green-400 mb-4">🔍 Pemindai Kunci Pribadi Bitcoin - Yocto</h1>
-    <p class="mb-2">Masukkan <strong>64 digit HEX Private Key</strong> (1 per baris):</p>
-    <textarea id="keys" class="w-full h-48 p-2 rounded bg-black text-green-400" placeholder="00000000..."></textarea>
-    <button onclick="scanKeys()" class="mt-4 px-4 py-2 bg-green-600 rounded hover:bg-green-700">Pindai</button>
-    <div id="output" class="mt-6 space-y-2"></div>
-  </div>
-
-<script>
-async function scanKeys() {
-  const output = document.getElementById('output');
-  output.innerHTML = '';
-  const lines = document.getElementById('keys').value.trim().split('\n');
-
-  for (let line of lines) {
-    line = line.trim().toLowerCase();
-    if (line.length !== 64 || !/^[0-9a-f]{64}$/.test(line)) {
-      output.innerHTML += `<p class='text-red-400'>❌ Format salah: ${line}</p>`;
-      continue;
-    }
-
-    try {
-      const privKey = Buffer.from(line, 'hex');
-      const keyPair = bitcoinjs.ECPair.fromPrivateKey(privKey);
-      const { address } = bitcoinjs.payments.p2pkh({ pubkey: keyPair.publicKey });
-
-      const balance = await fetchBalance(address);
-
-      output.innerHTML += `<div class='bg-gray-800 p-3 rounded'>
-        ✅ Address: <span class='text-green-400'>${address}</span><br/>
-        🔑 Private Key: <span class='text-yellow-400'>${line}</span><br/>
-        💰 Saldo: <span class='text-blue-400'>${balance}</span>
-      </div>`;
-    } catch (err) {
-      output.innerHTML += `<p class='text-red-500'>❌ Gagal memproses key: ${line}</p>`;
-    }
-  }
-}
-
-async function fetchBalance(address) {
-  try {
-    const res = await fetch(`https://blockstream.info/api/address/${address}`);
-    const json = await res.json();
-    const funded = json.chain_stats.funded_txo_sum || 0;
-    const spent = json.chain_stats.spent_txo_sum || 0;
-    const balance = (funded - spent) / 1e8;
-    return balance.toFixed(8) + ' BTC';
-  } catch {
-    return '⚠️ Gagal ambil saldo';
-  }
-}
-</script>
+<body style="background:black;color:lime;font-family:monospace;padding:20px">
+  <h1>🔍 Yocto Bitcoin Private Key Scanner</h1>
+  <p>Masukkan 64-digit HEX Private Key (1 per baris):</p>
+  <textarea id="keys" rows="10" cols="70"></textarea><br><br>
+  <button onclick="scanKeys()">🔎 Pindai</button>
+  <div id="results" style="margin-top:20px;"></div>
 </body>
 </html>
